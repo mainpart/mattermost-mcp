@@ -1,0 +1,13 @@
+[project]
+name = "mattermost-mcp"
+version = "0.1.0"
+description = "MCP server for Mattermost REST API v4"
+requires-python = ">=3.11"
+dependencies = ["fastmcp", "httpx"]
+
+[project.scripts]
+mattermost-mcp = "mattermost_mcp.server:main"
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
