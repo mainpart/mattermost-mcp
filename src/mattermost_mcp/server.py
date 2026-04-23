@@ -264,15 +264,37 @@ async def get_channel_by_name(channel_name: str, team_id: str = "") -> dict:
 
 @mm_tool
 async def search_channels(term: str, team_id: str = "") -> list:
-    """Search channels by term.
+    """Search channels by term across public team channels and private channels the user belongs to.
+
+    POST /teams/{team_id}/channels/search returns only public (type=O) channels for users with
+    `list_team_channels`; private channels (type=P) where the user is a member are missing.
+    To cover them, additionally fetch GET /users/me/teams/{team_id}/channels and filter locally
+    by substring match on `name`/`display_name`. Results are merged and de-duplicated by id.
 
     Args:
         term: search term
         team_id: team ID (uses MATTERMOST_TEAM_ID if empty)
     """
     tid = team_id or mm.get_team_id()
-    raw = await mm.request("POST", f"/teams/{tid}/channels/search", json_data={"term": term})
-    return _compact_channels(raw)
+    public = await mm.request("POST", f"/teams/{tid}/channels/search", json_data={"term": term})
+    if not isinstance(public, list):
+        public = []
+
+    needle = (term or "").strip().lower()
+    mine_matched: list = []
+    if needle:
+        mine = await mm.request("GET", f"/users/me/teams/{tid}/channels")
+        if isinstance(mine, list):
+            mine_matched = [
+                c for c in mine
+                if needle in (c.get("name") or "").lower()
+                or needle in (c.get("display_name") or "").lower()
+            ]
+
+    by_id = {c["id"]: c for c in public}
+    for c in mine_matched:
+        by_id.setdefault(c["id"], c)
+    return _compact_channels(list(by_id.values()))
 
 
 @mm_tool
